@@ -1,0 +1,19 @@
+[property]
+gpu-id=0
+net-scale-factor=0.0039215697906911373
+model-color-format=0
+onnx-file=/home/hasan/yolov8n.onnx
+model-engine-file=/home/hasan/yolov8n_b1_gpu0_fp16.engine
+# YOLO input boyutu genelde 640x640'tır
+infer-dims=3;640;640;0
+network-mode=2 # FP16 modunda derlenecek
+num-detected-classes=80
+gie-unique-id=1
+maintain-aspect-ratio=1
+parse-bbox-func-name=NvDsInferParseYolo
+custom-network-config=/home/hasan/yolov8n.onnx
+custom-lib-path=/home/hasan/DeepStream-Yolo/nvdsinfer_custom_impl_Yolo/libnvdsinfer_custom_impl_Yolo.so
+
+[class-attrs-all]
+nms-iou-threshold=0.45
+pre-cluster-threshold=0.25

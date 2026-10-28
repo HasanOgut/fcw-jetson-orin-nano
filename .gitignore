@@ -1,0 +1,10 @@
+*.engine
+*.onnx
+*.pt
+*.whl
+*.deb
+*.zip
+*.o
+*.so
+__pycache__/
+*.save
