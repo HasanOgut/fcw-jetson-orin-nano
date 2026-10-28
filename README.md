@@ -31,9 +31,9 @@ Görüntü, kameradan ekrana kadar GPU belleğinde kalır. Python tarafı yalnı
 flowchart TD
     A["Takip edilen yaya<br/>(sınır kutusu yüksekliği h, piksel)"] --> B["Mesafe = gerçek boy x odak uzunluğu / h<br/>(1750 mm, 840 piksel)"]
     B --> C["Son 5 kareden mesafe geçmişi"]
-    C --> D["Yaklaşma hızı =<br/>(önceki mesafe - şimdiki mesafe) / geçen süre"]
-    D --> E{"Hız > 50 mm/s?"}
-    E -- "Hayır (titreşim gürültüsü)" --> F["TTC hesaplanmaz"]
+    C --> D["Yaklaşma hızı =<br/>(en eski mesafe - şimdiki mesafe) / geçen süre"]
+    D --> E{"Nesne yaklaşıyor mu?<br/>(hız > 0)"}
+    E -- "Hayır (uzaklaşıyor veya sabit)" --> F["TTC hesaplanmaz"]
     E -- "Evet" --> G["TTC = mesafe / yaklaşma hızı"]
     G --> H{"TTC değeri"}
     H -- "TTC < 3 sn" --> I["TEHLİKE"]
@@ -88,17 +88,40 @@ Küçük modeller canlı pipeline'da kameranın 60 FPS sınırına takıldığı
 
 - Standart Ultralytics ONNX çıktısı, DeepStream-Yolo ayrıştırıcısıyla uyumsuz çıktı. Kütüphanenin kendi `export_*.py` betikleri kullanıldı.
 - RT-DETR-l, farklı çıkış formatı nedeniyle tüm nesneleri "bisiklet" olarak etiketledi. `patches/nvdsparsebbox_Yolo.cpp` içinde özel bir ayrıştırıcı (`NvDsInferParseRTDETR`) yazılarak çözüldü.
-- Sınır kutusu titreşimi anlamsız TTC değerleri üretiyordu. 50 mm/s altındaki yaklaşma hızları gürültü sayılarak elendi.
+- Sınır kutusu titreşimi mesafede dalgalanma yaratır. Bu yüzden yaklaşma hızı tek kareden değil, her yaya için son 5 karelik pencereden hesaplanır.
 
-## Klasör yapısı
+## Dosyaların açıklaması
 
-```
-src/        Python betikleri (pad probe, TTC, benchmark)
-configs/    DeepStream nvinfer, tracker (NvDCF) ve kaynak yapılandırmaları
-patches/    DeepStream-Yolo'ya eklenen RT-DETR ayrıştırıcısı
-```
+**src/**
 
-Model, ONNX ve TensorRT motor dosyaları boyutları nedeniyle depoya dahil değildir.
+| Dosya | Ne yapar |
+|---|---|
+| `capture.py` | Geliştirmenin ilk adımı. CSI kameradan GStreamer ile kare alıp NumPy dizisine çevirir ve FPS ölçer. Model yoktur, yalnızca görüntü yakalama katmanını doğrular. |
+| `test_probe.py` | Pad probe'un ilk testi. Tracker çıkışındaki tüm nesnelerin sınıf, takip kimliği, güven skoru ve kutu koordinatlarını konsola yazar. 300 kare sonra durur. |
+| `deepstream_ttc_deneme1.py` | İlk mesafe ve TTC sürümü. Sonuçları yalnızca konsola yazar, ekrana çizmez. |
+| `deepstream_ttc.py` | **Ana uygulama.** Yalnızca insan sınıfını izler; mesafe ve TTC'yi hesaplar, DİKKAT/TEHLİKE uyarısını konsola yazar ve ID, mesafe, TTC bilgisini ekrandaki kutu etiketine basar. |
+| `deepstream_benchmark.py` | `deepstream_ttc_deneme1.py` ile aynı içeriktedir. FPS ölçümleri bu betikle değil, `deepstream-app` ve `trtexec` ile yapılmıştır. |
+
+**configs/**
+
+| Dosya | Ne yapar |
+|---|---|
+| `config_infer_primary*.txt`, `config_infer_yolov8.txt` | nvinfer (model) yapılandırmaları |
+| `source1_csi_*.txt` | `deepstream-app` için CSI kamera kaynağı ve pipeline yapılandırmaları (YOLOv8, YOLOv8n ve PeopleNet) |
+| `config_tracker_NvDCF_perf.yml` | NvDCF takip algoritması ayarları (performans profili) |
+| `labels.txt` | Sınıf etiketleri |
+
+**patches/**
+- `nvdsparsebbox_Yolo.cpp`: DeepStream-Yolo'nun ayrıştırıcısı. RT-DETR-l çıkış formatını okuyan `NvDsInferParseRTDETR` fonksiyonu eklenmiştir.
+
+## Çalıştırma notları
+
+Betikler geliştirme cihazındaki yollarla yazılmıştır ve kendi ortamına göre düzenlenmelidir:
+- `sys.path.append('/home/hasan/deepstream_python_apps/apps')`: `common.bus_call` modülü için `deepstream_python_apps` deposunun yolu
+- `config-file-path`: nvinfer yapılandırma dosyası (`deepstream_ttc.py` içinde `config_infer_primary_yolov8m_fp16.txt`, bu dosya depoda yoktur, `configs/` içindeki yapılandırmalardan birini gösterecek şekilde değiştirilmelidir)
+- Tracker yapılandırması DeepStream'in `samples/configs/deepstream-app/` klasöründen okunur
+
+Gereksinimler: Jetson Orin Nano, JetPack, DeepStream 7.1, pyds (Python bindings), CSI kamera.
 
 ## Kullanılan açık kaynak projeler
 
